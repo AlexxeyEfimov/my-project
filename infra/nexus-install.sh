@@ -8,7 +8,7 @@ NEXUS_VERSION="3.58.1-02"  # Specify the desired Nexus version
 NEXUS_TAR="nexus-${NEXUS_VERSION}-unix.tar.gz"
 NEXUS_URL="https://download.sonatype.com/nexus/3/${NEXUS_TAR}"
 NEXUS_HOME="/opt/nexus"
-NEXUS_USER="nexus"
+NEXUS_USER="nexus-service"
 JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"  # Ensure this path is correct
 
 # Check if the script is run as root
@@ -42,6 +42,11 @@ if [ -z "$JAVA_HOME" ]; then
   export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")
   echo "JAVA_HOME set to: $JAVA_HOME"
 fi
+
+# Set INSTALL4J_JAVA_HOME
+echo "Setting INSTALL4J_JAVA_HOME..."
+export INSTALL4J_JAVA_HOME="$JAVA_HOME"
+echo "INSTALL4J_JAVA_HOME set to: $INSTALL4J_JAVA_HOME"
 
 # Create nexus user
 echo "Creating ${NEXUS_USER} user..."
@@ -110,5 +115,5 @@ systemctl status nexus
 
 # Output information
 echo "Installation complete!"
-echo "Nexus is available at: http://<VM_IP>:8081"
+echo "Nexus is available at port 8081"
 echo "Admin password can be found here: ${NEXUS_HOME}/sonatype-work/nexus3/admin.password"
