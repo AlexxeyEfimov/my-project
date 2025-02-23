@@ -8,7 +8,7 @@ NEXUS_VERSION="3.58.1-02"  # Specify the desired Nexus version
 NEXUS_TAR="nexus-${NEXUS_VERSION}-unix.tar.gz"
 NEXUS_URL="https://download.sonatype.com/nexus/3/${NEXUS_TAR}"
 NEXUS_HOME="/opt/nexus"
-NEXUS_USER="nexus-service"
+NEXUS_USER="nexus"
 JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"  # Ensure this path is correct
 
 # Check if the script is run as root
@@ -17,10 +17,31 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# Install Java (if not already installed)
-echo "Installing Java..."
-apt update
-apt install -y openjdk-11-jdk
+# Check if Java is installed
+echo "Checking Java installation..."
+if ! command -v java &> /dev/null; then
+  echo "Java is not installed. Installing OpenJDK 11..."
+  apt update
+  apt install -y openjdk-11-jdk
+else
+  echo "Java is already installed."
+fi
+
+# Verify Java version
+JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
+if [[ "$JAVA_VERSION" < "11" ]]; then
+  echo "Java version is too old. Please install Java 11 or higher."
+  exit 1
+else
+  echo "Java version is compatible: $JAVA_VERSION"
+fi
+
+# Set JAVA_HOME if not already set
+if [ -z "$JAVA_HOME" ]; then
+  echo "Setting JAVA_HOME..."
+  export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")
+  echo "JAVA_HOME set to: $JAVA_HOME"
+fi
 
 # Create nexus user
 echo "Creating ${NEXUS_USER} user..."
@@ -54,6 +75,7 @@ cat > ${NEXUS_HOME}/bin/nexus.vmoptions <<EOL
 -Xmx2703m
 -XX:MaxDirectMemorySize=2703m
 -Djava.util.prefs.userRoot=/opt/sonatype-work/nexus3
+-Djava.home=${JAVA_HOME}
 EOL
 
 # Create systemd service
