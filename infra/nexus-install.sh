@@ -1,119 +1,60 @@
 #!/bin/bash
 
-# Sonatype Nexus Installation Script
-# Author: [Your Name]
+# Обновляем пакеты
+sudo apt-get update
 
-# Variables
-NEXUS_VERSION="3.58.1-02"  # Specify the desired Nexus version
-NEXUS_TAR="nexus-${NEXUS_VERSION}-unix.tar.gz"
-NEXUS_URL="https://download.sonatype.com/nexus/3/${NEXUS_TAR}"
-NEXUS_HOME="/opt/nexus"
-NEXUS_USER="nexus-service"
-JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64"  # Ensure this path is correct
+# Устанавливаем Java 8
+sudo apt-get install -y openjdk-8-jdk
 
-# Check if the script is run as root
-if [ "$EUID" -ne 0 ]; then
-  echo "Please run the script as root."
-  exit 1
-fi
+# Проверяем установку Java
+java -version
 
-# Check if Java is installed
-echo "Checking Java installation..."
-if ! command -v java &> /dev/null; then
-  echo "Java is not installed. Installing OpenJDK 11..."
-  apt update
-  apt install -y openjdk-11-jdk
-else
-  echo "Java is already installed."
-fi
+# Создаем пользователя для Nexus
+sudo useradd -m -U -d /opt/nexus -s /bin/bash nexus
+sudo passwd nexus
 
-# Verify Java version
-JAVA_VERSION=$(java -version 2>&1 | awk -F '"' '/version/ {print $2}')
-if [[ "$JAVA_VERSION" < "11" ]]; then
-  echo "Java version is too old. Please install Java 11 or higher."
-  exit 1
-else
-  echo "Java version is compatible: $JAVA_VERSION"
-fi
+# Скачиваем Nexus
+cd /opt
+sudo wget https://download.sonatype.com/nexus/3/latest-unix.tar.gz
 
-# Set JAVA_HOME if not already set
-if [ -z "$JAVA_HOME" ]; then
-  echo "Setting JAVA_HOME..."
-  export JAVA_HOME=$(readlink -f /usr/bin/java | sed "s:bin/java::")
-  echo "JAVA_HOME set to: $JAVA_HOME"
-fi
+# Распаковываем архив
+sudo tar -xzf latest-unix.tar.gz
 
-# Set INSTALL4J_JAVA_HOME
-echo "Setting INSTALL4J_JAVA_HOME..."
-export INSTALL4J_JAVA_HOME="$JAVA_HOME"
-echo "INSTALL4J_JAVA_HOME set to: $INSTALL4J_JAVA_HOME"
+# Переименовываем папку для удобства
+sudo mv nexus-* nexus
 
-# Create nexus user
-echo "Creating ${NEXUS_USER} user..."
-useradd -M -s /bin/false ${NEXUS_USER}
+# Устанавливаем владельца папки
+sudo chown -R nexus:nexus /opt/nexus
 
-# Download and extract Nexus
-echo "Downloading Nexus..."
-wget ${NEXUS_URL} -P /tmp
-if [ $? -ne 0 ]; then
-  echo "Failed to download Nexus. Please check the URL or your internet connection."
-  exit 1
-fi
+# Настраиваем Nexus для запуска от пользователя nexus
+sudo sed -i 's/#RUN_AS_USER=/RUN_AS_USER=nexus/' /opt/nexus/bin/nexus.rc
 
-echo "Extracting Nexus..."
-tar -xvzf /tmp/${NEXUS_TAR} -C /opt
-mv /opt/nexus-${NEXUS_VERSION} ${NEXUS_HOME}
-
-# Set permissions
-echo "Setting permissions..."
-chown -R ${NEXUS_USER}:${NEXUS_USER} ${NEXUS_HOME}
-chown -R ${NEXUS_USER}:${NEXUS_USER} ${NEXUS_HOME}/../sonatype-work
-
-# Configure nexus.rc
-echo "Configuring nexus.rc..."
-echo "run_as_user=${NEXUS_USER}" > ${NEXUS_HOME}/bin/nexus.rc
-
-# Configure nexus.vmoptions
-echo "Configuring nexus.vmoptions..."
-cat > ${NEXUS_HOME}/bin/nexus.vmoptions <<EOL
--Xms2703m
--Xmx2703m
--XX:MaxDirectMemorySize=2703m
--Djava.util.prefs.userRoot=/opt/sonatype-work/nexus3
--Djava.home=${JAVA_HOME}
-EOL
-
-# Create systemd service
-echo "Creating systemd service..."
-cat > /etc/systemd/system/nexus.service <<EOL
+# Создаем службу для автоматического запуска Nexus
+sudo bash -c 'cat > /etc/systemd/system/nexus.service <<EOF
 [Unit]
-Description=Nexus Service
+Description=Sonatype Nexus
 After=network.target
 
 [Service]
 Type=forking
-LimitNOFILE=65536
-User=${NEXUS_USER}
-Group=${NEXUS_USER}
-ExecStart=${NEXUS_HOME}/bin/nexus start
-ExecStop=${NEXUS_HOME}/bin/nexus stop
+User=nexus
+Group=nexus
+ExecStart=/opt/nexus/bin/nexus start
+ExecStop=/opt/nexus/bin/nexus stop
 Restart=on-abort
 
 [Install]
 WantedBy=multi-user.target
-EOL
+EOF'
 
-# Reload systemd and start Nexus
-echo "Starting Nexus..."
-systemctl daemon-reload
-systemctl enable nexus
-systemctl start nexus
+# Перезагружаем systemd и включаем автозапуск Nexus
+sudo systemctl daemon-reload
+sudo systemctl enable nexus
 
-# Check status
-echo "Checking Nexus status..."
-systemctl status nexus
+# Запускаем Nexus
+sudo systemctl start nexus
 
-# Output information
-echo "Installation complete!"
-echo "Nexus is available at port 8081"
-echo "Admin password can be found here: ${NEXUS_HOME}/sonatype-work/nexus3/admin.password"
+# Проверяем статус службы
+sudo systemctl status nexus
+
+echo "Установка завершена. Nexus доступен по адресу http://<IP_вашей_машины>:8081"
