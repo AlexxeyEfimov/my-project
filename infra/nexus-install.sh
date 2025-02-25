@@ -9,7 +9,7 @@ NEXUS_TAR="nexus-${NEXUS_VERSION}-unix.tar.gz"
 NEXUS_URL="https://download.sonatype.com/nexus/3/${NEXUS_TAR}"
 NEXUS_HOME="/opt/nexus"
 NEXUS_USER="nexus-service"
-JAVA_HOME="/usr/lib/jvm/java-11-openjdk-amd64"  # Ensure this path is correct
+JAVA_HOME="/usr/lib/jvm/java-8-openjdk-amd64"  # Ensure this path is correct
 
 # Check if the script is run as root
 if [ "$EUID" -ne 0 ]; then
